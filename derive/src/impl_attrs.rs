@@ -53,8 +53,8 @@ impl VisitMut for TransformImpl {
             })
         } else {
             field.block = parse_quote!({
-                let result = #body;
-                unsafe { ::std::mem::transmute::<#orig_return_type, #return_type>(result) }
+                let result: #orig_return_type = #body;
+                unsafe { ::std::mem::transmute::<_, #return_type>(result) }
             })
         }
     }
