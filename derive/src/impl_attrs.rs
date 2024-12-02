@@ -43,25 +43,31 @@ struct TransformImpl {
 
 impl VisitMut for TransformImpl {
     fn visit_impl_item_fn_mut(&mut self, field: &mut syn::ImplItemFn) {
-        let mut wrapper_ident = &self.semantic_non_null;
-        if let Some((index, _)) = field.attrs.iter().enumerate().find(|(_, attr)| {
-            attr.path()
-                .get_ident()
-                .map(|ident| ident == "semantic_nullability")
-                .unwrap_or(false)
-        }) {
+        let attribute_meta = if let Some((index, _)) =
+            field.attrs.iter().enumerate().find(|(_, attr)| {
+                attr.path()
+                    .get_ident()
+                    .map(|ident| ident == "semantic_nullability")
+                    .unwrap_or(false)
+            }) {
             let attr = field.attrs.remove(index);
-            let Ok(parsed) = AttributeMeta::from_meta(&attr.meta) else {
-                self.errors.push(Error::new_spanned(
-                    attr,
-                    "Invalid attribute values for `semantic_nullability`",
-                ));
-                return;
-            };
-            if parsed.strict_non_null {
-                wrapper_ident = &self.strict_non_null
+            match AttributeMeta::from_meta(&attr.meta) {
+                Ok(parsed) => parsed,
+                Err(_) => {
+                    self.errors.push(Error::new_spanned(
+                        attr,
+                        "Invalid attribute values for `semantic_nullability`",
+                    ));
+                    return;
+                }
             }
-        }
+        } else {
+            AttributeMeta::default()
+        };
+        let wrapper_ident = match attribute_meta.strict_non_null {
+            true => &self.strict_non_null,
+            false => &self.semantic_non_null,
+        };
 
         let return_type = match &mut field.sig.output {
             ReturnType::Type(_, ty) => ty,
