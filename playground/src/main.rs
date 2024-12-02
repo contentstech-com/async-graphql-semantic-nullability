@@ -68,6 +68,10 @@ impl MyObject {
             foo: "bar".to_string(),
         })
     }
+
+    async fn option(&self) -> Option<MySimpleObject> {
+        None
+    }
 }
 
 struct Subscription;
@@ -75,12 +79,12 @@ struct Subscription;
 #[SemanticNonNull]
 #[Subscription]
 impl Subscription {
-    async fn integers(&self, #[graphql(default = 1)] step: i32) -> impl Stream<Item = i32> {
+    async fn integers(&self, #[graphql(default = 1)] step: i32) -> impl Stream<Item = Option<i32>> {
         let mut value = 0;
         tokio_stream::wrappers::IntervalStream::new(tokio::time::interval(Duration::from_secs(1)))
             .map(move |_| {
                 value += step;
-                value
+                Some(value)
             })
     }
 }

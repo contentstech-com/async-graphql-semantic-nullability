@@ -1,5 +1,6 @@
 use darling::FromMeta;
 use proc_macro2::Span;
+use quote::quote;
 use syn::{
     parse_quote,
     spanned::Spanned,
@@ -64,10 +65,6 @@ impl VisitMut for TransformImpl {
         } else {
             AttributeMeta::default()
         };
-        let wrapper_ident = match attribute_meta.strict_non_null {
-            true => &self.strict_non_null,
-            false => &self.semantic_non_null,
-        };
 
         let return_type = match &mut field.sig.output {
             ReturnType::Type(_, ty) => ty,
@@ -77,28 +74,30 @@ impl VisitMut for TransformImpl {
         let Some((field_type, is_subscription)) = self.extract_field_type(return_type) else {
             return;
         };
-        match Self::extract_inner_type(field_type) {
-            Ok(inner) => {
-                if let Some(inner) = inner {
-                    self.wrap(inner, wrapper_ident);
+        let (orig_field_type, new_field_type) =
+            match self.get_wrapped_type(field_type, attribute_meta.strict_non_null, true) {
+                Ok(new_field_type) => {
+                    let orig_field_type = field_type.clone();
+                    *field_type = new_field_type.clone();
+                    (orig_field_type, new_field_type)
                 }
-            }
-            Err(err) => {
-                self.errors.push(err);
-                return;
-            }
-        };
-        let (orig_field_type, new_field_type) = self.wrap(field_type, wrapper_ident);
+                Err(err) => {
+                    self.errors.push(err);
+                    return;
+                }
+            };
 
         let body = &field.block;
         if is_subscription {
             field.block = parse_quote!({
                 let result = #body;
+                #[allow(clippy::useless_transmute)]
                 ::tokio_stream::StreamExt::map(result, |v| unsafe { ::std::mem::transmute::<#orig_field_type, #new_field_type>(v) })
             })
         } else {
             field.block = parse_quote!({
                 let result: #orig_return_type = #body;
+                #[allow(clippy::useless_transmute)]
                 unsafe { ::std::mem::transmute::<_, #return_type>(result) }
             })
         }
@@ -106,15 +105,6 @@ impl VisitMut for TransformImpl {
 }
 
 impl TransformImpl {
-    fn wrap(&self, ty: &mut Type, wrapper_ident: &Ident) -> (Type, Type) {
-        let wrapper_source = &self.wrapper_source;
-        let orig_ty = ty.clone();
-        let new_ty: Type = parse_quote! { #wrapper_source::#wrapper_ident<#ty> };
-        *ty = new_ty.clone();
-
-        (orig_ty, new_ty)
-    }
-
     fn extract_field_type<'a>(&self, return_type: &'a mut Type) -> Option<(&'a mut Type, bool)> {
         match return_type {
             Type::Paren(ty) => self.extract_field_type(&mut ty.elem),
@@ -147,35 +137,76 @@ impl TransformImpl {
         }
     }
 
-    fn extract_inner_type(ty: &mut Type) -> Result<Option<&mut Type>> {
-        match ty {
-            Type::Array(ty) => Ok(Some(&mut ty.elem)),
-            Type::Slice(ty) => Ok(Some(&mut ty.elem)),
-            Type::Paren(ty) => Self::extract_inner_type(&mut ty.elem),
-            Type::Reference(ty) => Self::extract_inner_type(&mut ty.elem),
-            Type::Path(ty) => match ty.path.segments.last_mut() {
-                Some(path) => match path.ident.to_string().as_str() {
-                    name @ ("BTreeSet" | "HashSet" | "LinkedList" | "Vec" | "VecDeque") => {
-                        let span = path.span();
+    fn get_wrapped_type(&self, ty: &Type, is_strict: bool, needs_wrap: bool) -> Result<Type> {
+        let new_ty = match ty {
+            Type::Array(ty) => Type::Array(syn::TypeArray {
+                elem: Box::new(self.get_wrapped_type(&ty.elem, is_strict, true)?),
+                ..ty.clone()
+            }),
+            Type::Slice(ty) => Type::Slice(syn::TypeSlice {
+                elem: Box::new(self.get_wrapped_type(&ty.elem, is_strict, true)?),
+                ..ty.clone()
+            }),
+            Type::Paren(ty) => Type::Paren(syn::TypeParen {
+                elem: Box::new(self.get_wrapped_type(&ty.elem, is_strict, false)?),
+                ..ty.clone()
+            }),
+            Type::Reference(ty) => Type::Reference(syn::TypeReference {
+                elem: Box::new(self.get_wrapped_type(&ty.elem, is_strict, false)?),
+                ..ty.clone()
+            }),
+            Type::Path(ty) => {
+                let mut ty = ty.clone();
+                let Some(path) = ty.path.segments.last_mut() else {
+                    return Err(Error::new(
+                        ty.span(),
+                        "Path should have at least one segment",
+                    ));
+                };
+                let ident = path.ident.to_string();
+                match &ident[..] {
+                    name @ ("BTreeSet" | "HashSet" | "LinkedList" | "Vec" | "VecDeque"
+                    | "Option" | "Result") => {
                         let PathArguments::AngleBracketed(args) = &mut path.arguments else {
                             return Err(Error::new(
-                                span,
+                                path.span(),
                                 format!("`{}` should have angle bracketed generic arguments", name),
                             ));
                         };
-                        match args.args.first_mut() {
-                            Some(GenericArgument::Type(ty)) => Ok(Some(ty)),
-                            _ => Err(Error::new(
-                                span,
+                        let Some(GenericArgument::Type(inner)) = args.args.first_mut() else {
+                            return Err(Error::new(
+                                path.span(),
                                 format!("`{}` should have one type argument", name),
-                            )),
+                            ));
+                        };
+
+                        let (should_wrap_inner, should_wrap_this) = match name {
+                            "Option" | "Result" => (false, is_strict),
+                            _ => (true, true),
+                        };
+                        *inner = self.get_wrapped_type(inner, is_strict, should_wrap_inner)?;
+                        match should_wrap_this {
+                            true => Type::Path(ty),
+                            false => return Ok(Type::Path(ty)),
                         }
                     }
-                    _ => Ok(None),
-                },
-                _ => Ok(None),
-            },
-            _ => Ok(None),
+                    _ => Type::Path(ty),
+                }
+            }
+            ty => ty.clone(),
+        };
+
+        match needs_wrap {
+            true => {
+                let wrapper_source = &self.wrapper_source;
+                let wrapper_ident = match is_strict {
+                    true => &self.strict_non_null,
+                    false => &self.semantic_non_null,
+                };
+                let wrapper = quote!(#wrapper_source::#wrapper_ident);
+                Ok(parse_quote!(#wrapper<#new_ty>))
+            }
+            false => Ok(new_ty),
         }
     }
 }
