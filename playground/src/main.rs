@@ -68,6 +68,10 @@ impl MyObject {
             foo: "bar".to_string(),
         })
     }
+
+    async fn option(&self) -> Option<Vec<MySimpleObject>> {
+        Some(vec![])
+    }
 }
 
 struct Subscription;

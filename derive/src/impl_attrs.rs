@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use darling::FromMeta;
 use proc_macro2::Span;
 use syn::{
@@ -5,6 +7,7 @@ use syn::{
     spanned::Spanned,
     visit_mut::{visit_item_impl_mut, VisitMut},
     Error, GenericArgument, Ident, PathArguments, Result, ReturnType, Type, TypeParamBound,
+    TypePath,
 };
 
 use crate::{meta::AttributeMeta, utils::get_wrapper_source};
@@ -74,13 +77,26 @@ impl VisitMut for TransformImpl {
             ReturnType::Default => return,
         };
         let orig_return_type = return_type.clone();
+        let mut wrapped = false;
         let Some((field_type, is_subscription)) = self.extract_field_type(return_type) else {
             return;
         };
-        match Self::extract_inner_type(field_type) {
+        match rewrite_inner_type(field_type) {
             Ok(inner) => {
                 if let Some(inner) = inner {
-                    self.wrap(inner, wrapper_ident);
+                    let should_wrap = match extract_raw_typepath(inner) {
+                        Some(path) => path
+                            .path
+                            .segments
+                            .last()
+                            .map(|segment| segment.ident != "Option")
+                            .unwrap_or(true),
+                        None => true,
+                    };
+                    if should_wrap {
+                        wrapped = true;
+                        self.wrap(inner, wrapper_ident);
+                    }
                 }
             }
             Err(err) => {
@@ -88,21 +104,43 @@ impl VisitMut for TransformImpl {
                 return;
             }
         };
-        let (orig_field_type, new_field_type) = self.wrap(field_type, wrapper_ident);
+        let should_wrap = match extract_raw_typepath(field_type) {
+            Some(path) => path
+                .path
+                .segments
+                .last()
+                .map(|segment| segment.ident != "Option")
+                .unwrap_or(true),
+            None => true,
+        };
+        let (orig_field_type, new_field_type) = match should_wrap {
+            true => {
+                wrapped = true;
+                self.wrap(field_type, wrapper_ident)
+            }
+            false => (field_type.clone(), field_type.clone()),
+        };
 
-        let body = &field.block;
-        if is_subscription {
-            field.block = parse_quote!({
-                let result = #body;
-                ::tokio_stream::StreamExt::map(result, |v| unsafe { ::std::mem::transmute::<#orig_field_type, #new_field_type>(v) })
-            })
-        } else {
-            field.block = parse_quote!({
-                let result: #orig_return_type = #body;
-                unsafe { ::std::mem::transmute::<_, #return_type>(result) }
-            })
+        if wrapped {
+            let body = &field.block;
+            if is_subscription {
+                field.block = parse_quote!({
+                    let result = #body;
+                    ::tokio_stream::StreamExt::map(result, |v| unsafe { ::std::mem::transmute::<#orig_field_type, #new_field_type>(v) })
+                })
+            } else {
+                field.block = parse_quote!({
+                    let result: #orig_return_type = #body;
+                    unsafe { ::std::mem::transmute::<_, #return_type>(result) }
+                })
+            }
         }
     }
+}
+
+enum ExtractionResult<'a> {
+    Found(Rc<Type>),
+    NotFound { original: &'a mut Type },
 }
 
 impl TransformImpl {
@@ -146,36 +184,92 @@ impl TransformImpl {
             _ => None,
         }
     }
+}
 
-    fn extract_inner_type(ty: &mut Type) -> Result<Option<&mut Type>> {
-        match ty {
-            Type::Array(ty) => Ok(Some(&mut ty.elem)),
-            Type::Slice(ty) => Ok(Some(&mut ty.elem)),
-            Type::Paren(ty) => Self::extract_inner_type(&mut ty.elem),
-            Type::Reference(ty) => Self::extract_inner_type(&mut ty.elem),
-            Type::Path(ty) => match ty.path.segments.last_mut() {
-                Some(path) => match path.ident.to_string().as_str() {
-                    name @ ("BTreeSet" | "HashSet" | "LinkedList" | "Vec" | "VecDeque") => {
-                        let span = path.span();
-                        let PathArguments::AngleBracketed(args) = &mut path.arguments else {
+fn rewrite_inner_type(ty: &Type) -> Result<Type> {
+    use ExtractionResult::{Found, NotFound};
+
+    Ok(match ty {
+        Type::Array(ty) => Type::Array(syn::TypeArray {
+            elem: Box::new(rewrite_inner_type(&ty.elem)?),
+            ..ty.clone()
+        }),
+        Type::Slice(ty) => Type::Slice(syn::TypeSlice {
+            elem: Box::new(rewrite_inner_type(&ty.elem)?),
+            ..ty.clone()
+        }),
+        Type::Paren(ty) => Type::Paren(syn::TypeParen {
+            elem: Box::new(rewrite_inner_type(&ty.elem)?),
+            ..ty.clone()
+        }),
+        Type::Reference(ty) => Type::Reference(syn::TypeReference {
+            elem: Box::new(rewrite_inner_type(&ty.elem)?),
+            ..ty.clone()
+        }),
+        Type::Path(ty) => {
+            let ty = ty.clone();
+            let Some(path) = ty.path.segments.last_mut() else {
+                return Err(Error::new(
+                    ty.span(),
+                    "Path should have at least one segment",
+                ));
+            };
+            let ident = path.ident.to_string();
+            match &ident[..] {
+                name @ ("BTreeSet" | "HashSet" | "LinkedList" | "Vec" | "VecDeque") => {
+                    let PathArguments::AngleBracketed(args) = &mut path.arguments else {
+                        return Err(Error::new(
+                            path.span(),
+                            format!("`{}` should have angle bracketed generic arguments", name),
+                        ));
+                    };
+                    let Some(GenericArgument::Type(inner)) = args.args.first_mut() else {
+                        return Err(Error::new(
+                            path.span(),
+                            format!("`{}` should have one type argument", name),
+                        ));
+                    };
+                    *inner = parse_quote!(SemanticNonNull<#inner>);
+                    Type::Path(ty)
+                }
+                name @ ("Option" | "Result") => {
+                    let span = path.span();
+                    let PathArguments::AngleBracketed(args) = &mut path.arguments else {
+                        return Err(Error::new(
+                            span,
+                            format!("`{}` should have angle bracketed generic arguments", name),
+                        ));
+                    };
+                    match args.args.first_mut() {
+                        Some(GenericArgument::Type(ty)) => {
+                            return Ok(match rewrite_inner_type(ty) {
+                                Ok(inner) => Found(inner),
+                                Ok(NotFound { original }) => Found(original),
+                                Err(err) => return Err(err),
+                            })
+                        }
+                        _ => {
                             return Err(Error::new(
                                 span,
-                                format!("`{}` should have angle bracketed generic arguments", name),
-                            ));
-                        };
-                        match args.args.first_mut() {
-                            Some(GenericArgument::Type(ty)) => Ok(Some(ty)),
-                            _ => Err(Error::new(
-                                span,
                                 format!("`{}` should have one type argument", name),
-                            )),
+                            ))
                         }
                     }
-                    _ => Ok(None),
-                },
-                _ => Ok(None),
-            },
-            _ => Ok(None),
+                }
+                _ => Type::Path(ty.clone()),
+            }
         }
+        ty => ty.clone(),
+    })
+}
+
+fn extract_raw_typepath(ty: &mut Type) -> Option<&mut TypePath> {
+    match ty {
+        Type::Path(ty) => Some(ty),
+        Type::Array(ty) => extract_raw_typepath(&mut ty.elem),
+        Type::Slice(ty) => extract_raw_typepath(&mut ty.elem),
+        Type::Paren(ty) => extract_raw_typepath(&mut ty.elem),
+        Type::Reference(ty) => extract_raw_typepath(&mut ty.elem),
+        _ => None,
     }
 }
