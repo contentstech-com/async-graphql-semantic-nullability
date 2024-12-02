@@ -14,10 +14,52 @@ struct MyObject;
 #[SemanticNonNull]
 #[Object]
 impl MyObject {
-    async fn my_simple_object(&self) -> MySimpleObject {
+    async fn owned(&self) -> MySimpleObject {
         MySimpleObject {
             foo: "bar".to_string(),
         }
+    }
+
+    async fn borrowed(&self) -> &MySimpleObject {
+        &MySimpleObject {
+            foo: "bar".to_string(),
+        }
+    }
+
+    async fn array(&self) -> [MySimpleObject; 3] {
+        [
+            MySimpleObject {
+                foo: "bar".to_string(),
+            },
+            MySimpleObject {
+                foo: "bar".to_string(),
+            },
+            MySimpleObject {
+                foo: "bar".to_string(),
+            },
+        ]
+    }
+
+    async fn slice(&self) -> &[MySimpleObject] {
+        &[
+            MySimpleObject {
+                foo: "bar".to_string(),
+            },
+            MySimpleObject {
+                foo: "baz".to_string(),
+            },
+        ]
+    }
+
+    async fn vec(&self) -> Vec<MySimpleObject> {
+        vec![
+            MySimpleObject {
+                foo: "bar".to_string(),
+            },
+            MySimpleObject {
+                foo: "baz".to_string(),
+            },
+        ]
     }
 }
 

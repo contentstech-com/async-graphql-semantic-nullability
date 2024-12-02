@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::ToTokens as _;
+use quote::quote;
 use syn::{parse_macro_input, parse_quote, ItemImpl, Meta};
 
 use crate::impl_attrs::GraphQLAttrMacroType;
@@ -46,15 +46,18 @@ pub fn SemanticNonNull(_: TokenStream, input: TokenStream) -> TokenStream {
         macro_type = Some(current_type);
     }
 
-    match macro_type {
-        Some(macro_type) => impl_attrs::transform_impl(&mut item_impl, macro_type),
-        None => return syn::Error::new_spanned(
-            item_impl,
+    let errors = match macro_type {
+        Some(macro_type) => impl_attrs::transform_impl(&mut item_impl, macro_type).err(),
+        None => Some(syn::Error::new_spanned(
+            &item_impl,
             "Expected the impl block to have one of the supported async-graphql attribute macros",
-        )
-        .into_compile_error()
-        .into(),
-    };
+        )),
+    }
+    .map(|err| err.to_compile_error());
 
-    item_impl.into_token_stream().into()
+    quote! {
+        #item_impl
+        #errors
+    }
+    .into()
 }
