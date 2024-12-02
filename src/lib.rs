@@ -9,6 +9,7 @@ use async_graphql::{
 
 pub use async_graphql_semantic_nullability_derive::*;
 
+/// A wrapper type that can be used to mark a field as semantically non-nullable.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct SemanticNonNull<T>(pub T);
@@ -45,6 +46,9 @@ impl<T: OutputType> OutputType for SemanticNonNull<T> {
     }
 }
 
+/// A wrapper type that can be used to mark a field as strictly non-nullable.
+///
+/// Wrapping a nullable type with this will result in a runtime error.
 #[repr(transparent)]
 #[derive(Debug)]
 pub struct StrictNonNull<T>(pub T);

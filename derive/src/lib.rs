@@ -8,6 +8,9 @@ mod impl_attrs;
 mod meta;
 mod utils;
 
+/// Transforms an async-graphql impl block with semantic nullability wrappers attached.
+///
+/// This will transform every resolver to return values wrapped in either `SemanticNonNull` or `StrictNonNull`.
 #[proc_macro_attribute]
 #[allow(non_snake_case)]
 pub fn SemanticNonNull(_: TokenStream, input: TokenStream) -> TokenStream {
