@@ -61,6 +61,13 @@ impl MyObject {
             },
         ]
     }
+
+    #[semantic_nullability(strict_non_null)]
+    async fn strict(&self) -> Option<MySimpleObject> {
+        Some(MySimpleObject {
+            foo: "bar".to_string(),
+        })
+    }
 }
 
 struct Subscription;

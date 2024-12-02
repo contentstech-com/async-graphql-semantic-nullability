@@ -44,3 +44,41 @@ impl<T: OutputType> OutputType for SemanticNonNull<T> {
         self.0.resolve(ctx, field).await
     }
 }
+
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct StrictNonNull<T>(pub T);
+
+impl<T: OutputType> OutputType for StrictNonNull<T> {
+    fn type_name() -> Cow<'static, str> {
+        T::type_name()
+    }
+
+    fn qualified_type_name() -> String {
+        format!("{}!", T::type_name())
+    }
+
+    fn semantic_nullability() -> SemanticNullability {
+        SemanticNullability::None
+    }
+
+    fn create_type_info(registry: &mut Registry) -> String {
+        T::create_type_info(registry);
+        Self::qualified_type_name()
+    }
+
+    async fn resolve(
+        &self,
+        ctx: &ContextSelectionSet<'_>,
+        field: &Positioned<Field>,
+    ) -> ServerResult<Value> {
+        match self.0.resolve(ctx, field).await {
+            Ok(Value::Null) => Err(async_graphql::ServerError::new(
+                "Expected to return non-null value, but got null",
+                Some(field.pos),
+            )),
+            Ok(value) => Ok(value),
+            Err(err) => Err(err),
+        }
+    }
+}

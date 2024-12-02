@@ -5,6 +5,7 @@ use syn::{parse_macro_input, parse_quote, ItemImpl, Meta};
 use crate::impl_attrs::GraphQLAttrMacroType;
 
 mod impl_attrs;
+mod meta;
 mod utils;
 
 #[proc_macro_attribute]

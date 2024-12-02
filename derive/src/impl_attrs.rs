@@ -1,11 +1,13 @@
+use darling::FromMeta;
+use proc_macro2::Span;
 use syn::{
     parse_quote,
     spanned::Spanned,
     visit_mut::{visit_item_impl_mut, VisitMut},
-    Error, GenericArgument, PathArguments, Result, ReturnType, Type, TypeParamBound,
+    Error, GenericArgument, Ident, PathArguments, Result, ReturnType, Type, TypeParamBound,
 };
 
-use crate::utils::get_semantic_non_null_wrapper;
+use crate::{meta::AttributeMeta, utils::get_wrapper_source};
 
 #[derive(PartialEq, Eq)]
 pub enum GraphQLAttrMacroType {
@@ -17,7 +19,9 @@ pub enum GraphQLAttrMacroType {
 
 pub fn transform_impl(input: &mut syn::ItemImpl, macro_type: GraphQLAttrMacroType) -> Result<()> {
     let mut visitor = TransformImpl {
-        wrapper_name: get_semantic_non_null_wrapper(),
+        wrapper_source: get_wrapper_source(),
+        semantic_non_null: Ident::new("SemanticNonNull", Span::call_site()),
+        strict_non_null: Ident::new("StrictNonNull", Span::call_site()),
         macro_type,
         errors: Vec::new(),
     };
@@ -30,13 +34,35 @@ pub fn transform_impl(input: &mut syn::ItemImpl, macro_type: GraphQLAttrMacroTyp
 }
 
 struct TransformImpl {
-    wrapper_name: proc_macro2::TokenStream,
+    wrapper_source: proc_macro2::TokenStream,
+    semantic_non_null: Ident,
+    strict_non_null: Ident,
     macro_type: GraphQLAttrMacroType,
     errors: Vec<Error>,
 }
 
 impl VisitMut for TransformImpl {
     fn visit_impl_item_fn_mut(&mut self, field: &mut syn::ImplItemFn) {
+        let mut wrapper_ident = &self.semantic_non_null;
+        if let Some((index, _)) = field.attrs.iter().enumerate().find(|(_, attr)| {
+            attr.path()
+                .get_ident()
+                .map(|ident| ident == "semantic_nullability")
+                .unwrap_or(false)
+        }) {
+            let attr = field.attrs.remove(index);
+            let Ok(parsed) = AttributeMeta::from_meta(&attr.meta) else {
+                self.errors.push(Error::new_spanned(
+                    attr,
+                    "Invalid attribute values for `semantic_nullability`",
+                ));
+                return;
+            };
+            if parsed.strict_non_null {
+                wrapper_ident = &self.strict_non_null
+            }
+        }
+
         let return_type = match &mut field.sig.output {
             ReturnType::Type(_, ty) => ty,
             ReturnType::Default => return,
@@ -48,7 +74,7 @@ impl VisitMut for TransformImpl {
         match Self::extract_inner_type(field_type) {
             Ok(inner) => {
                 if let Some(inner) = inner {
-                    self.wrap(inner);
+                    self.wrap(inner, wrapper_ident);
                 }
             }
             Err(err) => {
@@ -56,7 +82,7 @@ impl VisitMut for TransformImpl {
                 return;
             }
         };
-        let (orig_field_type, new_field_type) = self.wrap(field_type);
+        let (orig_field_type, new_field_type) = self.wrap(field_type, wrapper_ident);
 
         let body = &field.block;
         if is_subscription {
@@ -74,10 +100,10 @@ impl VisitMut for TransformImpl {
 }
 
 impl TransformImpl {
-    fn wrap(&self, ty: &mut Type) -> (Type, Type) {
-        let wrapper_name = &self.wrapper_name;
+    fn wrap(&self, ty: &mut Type, wrapper_ident: &Ident) -> (Type, Type) {
+        let wrapper_source = &self.wrapper_source;
         let orig_ty = ty.clone();
-        let new_ty: Type = parse_quote! { #wrapper_name<#ty> };
+        let new_ty: Type = parse_quote! { #wrapper_source::#wrapper_ident<#ty> };
         *ty = new_ty.clone();
 
         (orig_ty, new_ty)
