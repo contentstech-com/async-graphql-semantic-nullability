@@ -12,7 +12,7 @@ pub use async_graphql_semantic_nullability_derive::*;
 /// A wrapper type that can be used to mark a field as semantically non-nullable.
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct SemanticNonNull<T>(pub T);
+pub struct SemanticNonNull<T: ?Sized>(pub T);
 
 impl<T: OutputType> OutputType for SemanticNonNull<T> {
     fn type_name() -> Cow<'static, str> {
@@ -51,7 +51,7 @@ impl<T: OutputType> OutputType for SemanticNonNull<T> {
 /// Wrapping a nullable type with this will result in a runtime error.
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct StrictNonNull<T>(pub T);
+pub struct StrictNonNull<T: ?Sized>(pub T);
 
 impl<T: OutputType> OutputType for StrictNonNull<T> {
     fn type_name() -> Cow<'static, str> {
@@ -86,3 +86,30 @@ impl<T: OutputType> OutputType for StrictNonNull<T> {
         }
     }
 }
+
+macro_rules! impl_traits {
+    ($ident:ident) => {
+        impl<T: std::fmt::Display + ?Sized> std::fmt::Display for $ident<T> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.fmt(f)
+            }
+        }
+
+        impl<T: std::hash::Hash + ?Sized> std::hash::Hash for $ident<T> {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                self.0.hash(state)
+            }
+        }
+
+        impl<T: PartialEq + ?Sized> PartialEq for $ident<T> {
+            fn eq(&self, other: &Self) -> bool {
+                self.0.eq(&other.0)
+            }
+        }
+
+        impl<T: Eq + ?Sized> Eq for $ident<T> {}
+    };
+}
+
+impl_traits!(SemanticNonNull);
+impl_traits!(StrictNonNull);
