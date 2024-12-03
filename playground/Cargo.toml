@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies.async-graphql]
 git = "https://github.com/contentstech-com/async-graphql"
-branch = "feat/semantic-non-null"
-features = ["optional-result"]
+rev = "60bff38"
+features = ["nullable-result"]
 
 [dependencies]
 async-graphql-semantic-nullability = { path = "../" }

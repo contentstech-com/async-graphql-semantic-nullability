@@ -45,43 +45,11 @@ checksum = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 [[package]]
 name = "async-graphql"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null#2190a3fded2cfe75b11b26057c037d61cf88d56b"
-dependencies = [
- "async-graphql-derive 7.0.11 (git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null)",
- "async-graphql-parser 7.0.11 (git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null)",
- "async-graphql-value 7.0.11 (git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null)",
- "async-stream",
- "async-trait",
- "base64",
- "bytes",
- "fast_chemail",
- "fnv",
- "futures-timer",
- "futures-util",
- "handlebars",
- "http",
- "indexmap",
- "mime",
- "multer",
- "num-traits",
- "pin-project-lite",
- "regex",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "static_assertions_next",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "async-graphql"
-version = "7.0.11"
 source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
 dependencies = [
- "async-graphql-derive 7.0.11 (git+https://github.com/contentstech-com/async-graphql?rev=60bff38)",
- "async-graphql-parser 7.0.11 (git+https://github.com/contentstech-com/async-graphql?rev=60bff38)",
- "async-graphql-value 7.0.11 (git+https://github.com/contentstech-com/async-graphql?rev=60bff38)",
+ "async-graphql-derive",
+ "async-graphql-parser",
+ "async-graphql-value",
  "async-stream",
  "async-trait",
  "base64",
@@ -109,26 +77,10 @@ dependencies = [
 [[package]]
 name = "async-graphql-derive"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null#2190a3fded2cfe75b11b26057c037d61cf88d56b"
-dependencies = [
- "Inflector",
- "async-graphql-parser 7.0.11 (git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null)",
- "darling",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "strum",
- "syn",
- "thiserror",
-]
-
-[[package]]
-name = "async-graphql-derive"
-version = "7.0.11"
 source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
 dependencies = [
  "Inflector",
- "async-graphql-parser 7.0.11 (git+https://github.com/contentstech-com/async-graphql?rev=60bff38)",
+ "async-graphql-parser",
  "darling",
  "proc-macro-crate",
  "proc-macro2",
@@ -141,20 +93,9 @@ dependencies = [
 [[package]]
 name = "async-graphql-parser"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null#2190a3fded2cfe75b11b26057c037d61cf88d56b"
-dependencies = [
- "async-graphql-value 7.0.11 (git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null)",
- "pest",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "async-graphql-parser"
-version = "7.0.11"
 source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
 dependencies = [
- "async-graphql-value 7.0.11 (git+https://github.com/contentstech-com/async-graphql?rev=60bff38)",
+ "async-graphql-value",
  "pest",
  "serde",
  "serde_json",
@@ -164,7 +105,7 @@ dependencies = [
 name = "async-graphql-semantic-nullability"
 version = "0.1.0"
 dependencies = [
- "async-graphql 7.0.11 (git+https://github.com/contentstech-com/async-graphql?rev=60bff38)",
+ "async-graphql",
  "async-graphql-semantic-nullability-derive",
 ]
 
@@ -183,21 +124,10 @@ dependencies = [
 name = "async-graphql-semantic-nullability-playground"
 version = "0.1.0"
 dependencies = [
- "async-graphql 7.0.11 (git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null)",
+ "async-graphql",
  "async-graphql-semantic-nullability",
  "tokio",
  "tokio-stream",
-]
-
-[[package]]
-name = "async-graphql-value"
-version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?branch=feat%2Fsemantic-non-null#2190a3fded2cfe75b11b26057c037d61cf88d56b"
-dependencies = [
- "bytes",
- "indexmap",
- "serde",
- "serde_json",
 ]
 
 [[package]]
