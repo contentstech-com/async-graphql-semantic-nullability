@@ -5,7 +5,7 @@ A crate for more convenient usage of semantic nullability in [async-graphql](htt
 > [!WARNING]
 > This crate assumes usage of `async-graphql` with [PR #1638](https://github.com/async-graphql/async-graphql/pull/1638), therefore will break otherwise.
 >
-> This crate also enables the `optional-result` feature of `async-graphql` (only exists on top of [PR #1637](https://github.com/async-graphql/async-graphql/pull/1637)) so check carefully whether your existing schema gets any unintentional changes.
+> This crate also enables the `nullable-result` feature of `async-graphql` (only exists on top of [PR #1637](https://github.com/async-graphql/async-graphql/pull/1637)) so check carefully whether your existing schema gets any unintentional changes.
 
 ## Usage
 
