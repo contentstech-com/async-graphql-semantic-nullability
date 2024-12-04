@@ -45,7 +45,7 @@ checksum = "71938f30533e4d95a6d17aa530939da3842c2ab6f4f84b9dae68447e4129f74a"
 [[package]]
 name = "async-graphql"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
+source = "git+https://github.com/contentstech-com/async-graphql?rev=061152c#061152c076659ad9636bf95440e42953cfd50afc"
 dependencies = [
  "async-graphql-derive",
  "async-graphql-parser",
@@ -77,7 +77,7 @@ dependencies = [
 [[package]]
 name = "async-graphql-derive"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
+source = "git+https://github.com/contentstech-com/async-graphql?rev=061152c#061152c076659ad9636bf95440e42953cfd50afc"
 dependencies = [
  "Inflector",
  "async-graphql-parser",
@@ -93,7 +93,7 @@ dependencies = [
 [[package]]
 name = "async-graphql-parser"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
+source = "git+https://github.com/contentstech-com/async-graphql?rev=061152c#061152c076659ad9636bf95440e42953cfd50afc"
 dependencies = [
  "async-graphql-value",
  "pest",
@@ -133,7 +133,7 @@ dependencies = [
 [[package]]
 name = "async-graphql-value"
 version = "7.0.11"
-source = "git+https://github.com/contentstech-com/async-graphql?rev=60bff38#60bff387083d5a4f5765ccc08596bc5d6eff7e41"
+source = "git+https://github.com/contentstech-com/async-graphql?rev=061152c#061152c076659ad9636bf95440e42953cfd50afc"
 dependencies = [
  "bytes",
  "indexmap",
